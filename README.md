@@ -1,0 +1,1 @@
+# azure-golang-login-token-validator
