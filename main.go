@@ -9,18 +9,15 @@ import (
 	"log"
 	"math/big"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
-)
 
-const (
-	azureADOpenIDConfigURL = "https://login.microsoftonline.com/{tenantId}/v2.0/.well-known/openid-configuration"
-	tenantID               = "YOUR APP TENANT ID"
-	jwtKey                 = "YOUR APP SECRET KEY VALUE" // Reemplaza con tu propia clave secreta generada
-	clientID               = "YOUR APP CLIENT ID"
+	"github.com/gin-contrib/cors"
+	"github.com/joho/godotenv"
 )
 
 // Se definen dos estructuras: TokenValidator y TokenValidatorConfig. La estructura TokenValidator contiene un campo Config que es un puntero a la estructura TokenValidatorConfig. La estructura TokenValidatorConfig contiene los campos necesarios para configurar el validador de tokens, incluyendo la URL de configuración de OpenID de Azure AD, el ID del inquilino y el ID de cliente.
@@ -58,13 +55,25 @@ type TokenValidationResult struct {
 
 // La función main es el punto de entrada del programa. Aquí se crea una instancia del validador de tokens utilizando la función NewTokenValidator y se configuran los parámetros necesarios. Luego se crea un enrutador Gin y se registra el controlador ValidateTokenHandler para la ruta "/validate-token". Finalmente, se inicia el servidor web utilizando el método Run del enrutador Gin.
 func main() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error al cargar el archivo .env")
+	}
+
 	tokenValidator := NewTokenValidator(&TokenValidatorConfig{
-		AzureADOpenIDConfigURL: azureADOpenIDConfigURL,
-		TenantID:               tenantID,
-		ClientID:               clientID,
+		AzureADOpenIDConfigURL: os.Getenv("AZURE_AD_OPENID_CONFIG_URL"),
+		TenantID:               os.Getenv("TENANT_ID"),
+		ClientID:               os.Getenv("CLIENT_ID"),
 	})
 
+	// Configurar las opciones CORS
+	corsConfig := cors.DefaultConfig()
+	corsConfig.AllowOrigins = []string{"http://localhost:4000"} // Doy permiso al puerto 4000 que es donde funciona mi aplicación frontend
+	corsConfig.AllowMethods = []string{"GET", "POST"}
+	corsConfig.AllowHeaders = []string{"Authorization"} // Agrego el encabezado Authorization a la lista de encabezados permitidos
+
 	router := gin.Default()
+	router.Use(cors.New(corsConfig))
 	router.POST("/validate-token", tokenValidator.ValidateTokenHandler)
 
 	log.Fatal(router.Run(":8000"))
@@ -91,6 +100,7 @@ func (v *TokenValidator) ValidateTokenHandler(c *gin.Context) {
 		return
 	}
 
+	// opcional: imprimir el token recibido del frontend.
 	// fmt.Println("Token recibido:", tokenString)
 
 	tokenString = tokenParts[1]
